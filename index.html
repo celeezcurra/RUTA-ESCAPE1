@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruta de rescate</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+    <script src="assets/art.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background-color: #0d0d15; color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+        h1 { margin: 5px 0 2px 0; font-size: 22px; text-align: center; color: #f39c12; }
+        p { margin: 0 0 10px 0; color: #bbb; font-size: 13px; text-align: center; }
+        
+        #game-wrapper {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            border: 3px solid #222;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.8);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #111122;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999;
+            padding: 30px;
+            text-align: center;
+        }
+
+        #start-overlay h2 { font-size: 36px; color: #f39c12; margin: 0 0 5px 0; }
+        #start-overlay h3 { font-size: 15px; color: #bdc3c7; margin: 0 0 20px 0; font-weight: normal; }
+
+        .info-box {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            text-align: left;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #ddd;
+            max-width: 600px;
+        }
+
+        .play-btn-html {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .play-btn-html:hover:not(:disabled) { background: #2ecc71; }
+        .play-btn-html:active:not(:disabled) { transform: scale(0.97); }
+        .play-btn-html:disabled { opacity: .45; cursor: not-allowed; }
+        .name-input { width: min(320px, 90%); padding: 12px 14px; margin: 0 0 8px; border: 2px solid #526078; border-radius: 8px; background: #0d1425; color: white; font-size: 19px; text-align: center; outline: none; }
+        .name-hint { min-height: 20px; margin: 0 0 14px; color: #f1c40f; font-size: 13px; }
+
+        .mobile-controls {
+            display: none;
+            width: 800px; max-width: 100%;
+            justify-content: space-between; align-items: center;
+            padding: 10px 20px; margin-top: 5px;
+            touch-action: none;
+        }
+        .dpad { display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px); gap: 5px; }
+        .touch-btn {
+            background: #2c3e50; border: 2px solid #555; color: white; font-weight: bold;
+            font-size: 18px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            user-select: none; -webkit-user-select: none;
+        }
+        .touch-btn:active { background: #e74c3c; }
+        .action-btn { width: 110px; height: 100px; background: #27ae60; border-radius: 12px; font-size: 16px; text-align: center; }
+        @media (max-width: 850px) { .mobile-controls { display: flex; } }
+    </style>
+</head>
+<body>
+
+    <h1>Ruta de rescate</h1>
+    <p>PC: [WASD/Flechas] Moverse | [E/Espacio] Recoger/Transferir | [ESC] Pausa | Móvil: Botones en pantalla</p>
+
+    <div id="game-wrapper">
+        <div id="start-overlay">
+            <h2>RUTA DE RESCATE</h2>
+            <h3>— Simulación de Emergencia y Supervivencia —</h3>
+            <div class="info-box">
+                • Llevá a los sobrevivientes al <b>Puesto de Rescate Verde</b>.<br>
+                • Desde el <b>Nivel 4</b> tendrás <b>2 Zonas Seguras</b> (Centro y Derecha).<br>
+                • Capacidad máxima: <b>2 personas simultáneas</b>.<br>
+                • 🌊 <b>Inundación:</b> Daño continuo en el agua. ¡Los heridos en peligro parpadean!<br>
+                • 🌋 <b>Erupción:</b> ¡La lava produce muerte instantánea!<br>
+                • 🚑 <b>Ambulancia (Nivel 4+):</b> Advertencia con luces antes de pasar. ¡Te cura vida!
+            </div>
+            <label for="player-name" style="font-size:16px;color:#fff;margin-bottom:8px">Escribí tu nombre (3 a 10 letras)</label>
+            <input class="name-input" id="player-name" type="text" maxlength="10" autocomplete="off" placeholder="Tu nombre" />
+            <div class="name-hint" id="name-hint">Solo letras, sin números ni símbolos.</div>
+            <button class="play-btn-html" id="btn-start-game" disabled>JUGAR AHORA</button>
+        </div>
+        <div id="game-container"></div>
+    </div>
+
+    <div class="mobile-controls">
+        <div class="dpad">
+            <div></div><div class="touch-btn" id="btn-up">▲</div><div></div>
+            <div class="touch-btn" id="btn-left">◄</div><div></div><div class="touch-btn" id="btn-right">►</div>
+            <div></div><div class="touch-btn" id="btn-down">▼</div><div></div>
+        </div>
+        <div class="touch-btn action-btn" id="btn-action">ACCION<br>[ E ]</div>
+    </div>
+
+    <script>
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.bgmTimer = null;
+                this.bgmNoteIndex = 0;
+                this.isPlayingBGM = false;
+                this.audioEnabled = true;
+                this.notes = { C4: 261.63, E4: 329.63, G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99 };
+            }
+
+            init() {
+                try {
+                    if (!this.ctx) {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        this.ctx = new AudioCtx();
+                    }
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                } catch(e) {}
+            }
+
+            playPickup() {
+                if (!this.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(now); osc.stop(now + 0.15);
+            }
+
+            playHit() {
+                if (!this.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.25);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(now); osc.stop(now + 0.25);
+            }
+
+            playDrop() {
+                if (!this.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(now); osc.stop(now + 0.3);
+            }
+
+            playDeliver() {
+                if (!this.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.2);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.2);
+                });
+            }
+
+            startBGM(tempoMs = 200) {
+                if (!this.audioEnabled) return;
+                this.init();
+                this.stopBGM();
+                this.isPlayingBGM = true;
+                const melody = [this.notes.C4, this.notes.E4, this.notes.G4, this.notes.C5, this.notes.A4, this.notes.E4, this.notes.A4, this.notes.C5, this.notes.G4, this.notes.E4, this.notes.G4, this.notes.B4, this.notes.C5, null, this.notes.G4, null];
+                this.bgmNoteIndex = 0;
+                this.bgmTimer = setInterval(() => {
+                    const freq = melody[this.bgmNoteIndex];
+                    if (freq && this.isPlayingBGM && this.audioEnabled && this.ctx) {
+                        const now = this.ctx.currentTime;
+                        const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(freq, now);
+                        gain.gain.setValueAtTime(0.03, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + (tempoMs / 1000) * 0.9);
+                        osc.connect(gain); gain.connect(this.ctx.destination);
+                        osc.start(now); osc.stop(now + tempoMs / 1000);
+                    }
+                    this.bgmNoteIndex = (this.bgmNoteIndex + 1) % melody.length;
+                }, tempoMs);
+            }
+
+            stopBGM() {
+                this.isPlayingBGM = false;
+                if (this.bgmTimer) { clearInterval(this.bgmTimer); this.bgmTimer = null; }
+            }
+        }
+
+        const SFX = new SoundFX();
+
+        const config = {
+            type: Phaser.AUTO,
+            width: 800, height: 600,
+            parent: 'game-container',
+            backgroundColor: '#1a1a2e',
+            physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+            scene: [BootScene, CatastropheSelectScene, LevelSelectScene, GameScene, GameOverScene]
+        };
+
+        const game = new Phaser.Game(config);
+
+        const GameState = {
+            catastrophe: null,
+            currentLevel: 1,
+            maxLevels: 8,
+            totalRescued: 0,
+            playerName: '',
+            totalRunSeconds: 0,
+            modeRunRescued: 0,
+            lostThisMode: 0,
+            mobileInput: { up: false, down: false, left: false, right: false, action: false },
+            progress: JSON.parse(localStorage.getItem('ruta_rescate_progress')) || {
+                Terremoto: 1, Inundacion: 1, Erupcion: 1,
+                stars: {}
+            },
+            saveProgress(cat, lvl, starsObtained) {
+                if (lvl >= this.progress[cat] && lvl < 8) {
+                    this.progress[cat] = lvl + 1;
+                }
+                const key = `${cat}_${lvl}`;
+                if (!this.progress.stars[key] || starsObtained > this.progress.stars[key]) {
+                    this.progress.stars[key] = starsObtained;
+                }
+                localStorage.setItem('ruta_rescate_progress', JSON.stringify(this.progress));
+            }
+        };
+
+        const RECORDS_KEY = 'ruta_rescate_records_v2';
+        function getRecords() {
+            try { return JSON.parse(localStorage.getItem(RECORDS_KEY)) || {}; }
+            catch (e) { return {}; }
+        }
+        function formatTime(totalSeconds) {
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = totalSeconds % 60;
+            return `${mins} min ${String(secs).padStart(2, '0')} s`;
+        }
+        function saveAndCompareRecord() {
+            const records = getRecords();
+            const nameKey = GameState.playerName.trim().toLocaleLowerCase('es');
+            const modeKey = `${nameKey}_${GameState.catastrophe}`;
+            const previous = records[modeKey];
+            const current = { name: GameState.playerName, rescued: GameState.totalRescued, seconds: GameState.totalRunSeconds };
+            const isBetter = !previous || current.rescued > previous.rescued ||
+                (current.rescued === previous.rescued && current.seconds < previous.seconds);
+            if (isBetter) records[modeKey] = current;
+            localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+            return { previous, current: records[modeKey], isBetter };
+        }
+
+        const HERO_RECORD_KEY = 'ruta_rescate_hero_record_v1';
+        function getHeroRecord() {
+            try { return JSON.parse(localStorage.getItem(HERO_RECORD_KEY)) || null; }
+            catch (e) { return null; }
+        }
+        function saveHeroRecord(name, seconds) {
+            if (!name) return null;
+            const prev = getHeroRecord();
+            if (!prev || seconds < prev.seconds) {
+                const newRecord = { name, seconds };
+                localStorage.setItem(HERO_RECORD_KEY, JSON.stringify(newRecord));
+                return { record: newRecord, isNew: true };
+            }
+            return { record: prev, isNew: false };
+        }
+
+        const LEVEL_TIMELIMITS = [50, 49, 47, 46, 44, 43, 41, 40];
+
+        const CATASTROPHE_DATA = {
+            Terremoto: {
+                color: 0x3e2723,
+                levels: Array.from({ length: 8 }, (_, i) => ({
+                    spawnInterval: Math.max(600, 2200 - i * 180),
+                    survivorCount: 3 + Math.floor(i * 0.7),
+                    timeLimit: LEVEL_TIMELIMITS[i],
+                    wallCount: 3 + i * 2, crackCount: 3 + i * 2,
+                    hazardSpeed: 4 + i * 2.5,
+                    hasAmbulance: i >= 3
+                }))
+            },
+            Inundacion: {
+                color: 0x0d47a1,
+                levels: Array.from({ length: 8 }, (_, i) => ({
+                    spawnInterval: Math.max(650, 2400 - i * 180),
+                    survivorCount: 3 + Math.floor(i * 0.7),
+                    timeLimit: LEVEL_TIMELIMITS[i],
+                    wallCount: 2 + i * 2, crackCount: 2 + i, hazardSpeed: 5 + i * 2.8,
+                    hasAmbulance: i >= 3
+                }))
+            },
+            Erupcion: {
+                color: 0xbf360c,
+                levels: Array.from({ length: 8 }, (_, i) => ({
+                    spawnInterval: Math.max(500, 2000 - i * 160),
+                    survivorCount: 4 + Math.floor(i * 0.6),
+                    timeLimit: LEVEL_TIMELIMITS[i],
+                    wallCount: 4 + i * 2, crackCount: 3 + i * 2, hazardSpeed: 6 + i * 3,
+                    hasAmbulance: i >= 3
+                }))
+            }
+        };
+
+        // =====================================================================
+        //  MAPAS DE NIVELES
+        //  Leyenda:  . libre   G sólido   C bache   P herido   J jugador   S salida
+        //  El tamaño se adapta solo (filas x columnas). Nivel en null = mapa al azar como antes.
+        // =====================================================================
+        const SCREEN_W = 800, SCREEN_H = 600;
+
+        const LEVEL_MAPS = {
+            Terremoto: [
+                // Nivel 1
+                `
+                CCCCCCCCGGGG.........CCCC
+                ..........CG.............
+                ...........GC...CGGGGG...
+                ..GGGG..P...........CG...
+                ..GC.................G...
+                ..G........G...GGGC..G...
+                ..G..C....CGC........GG..
+                ......................C..
+                .............CG..........
+                ......CGG.....GGG....SS..
+                ...J..CGG.....GGG....SS..
+                .............PGC.........
+                C.....................C..
+                ..G..C....CGC........GG..
+                ..G........G...GGGC..G...
+                ..GC.................G...
+                ..GGGG..............CG...
+                ..........PGC...CGGGGG...
+                ..........CG.............
+                CCCCCCCCGGGG.........CCCC
+                `,
+                // Nivel 2
+                `
+                .......CGGGGGC........GGG
+                ...........CG............
+                ...G.......CG...GGGG.....
+                ...G....G...G...GC....G..
+                ...G....G.P.G...C.....G..
+                ...G....G...G.P.......G..
+                ...G....G...G........GG..
+                ...G....G.......GG.....C.
+                ...G..CGG.......G........
+                ............C..CG....SS..
+                ...J........C..CG....SS..
+                ...G..CGG.......G........
+                ...G....G.......GG.....C.
+                ...G....G...G........GG..
+                ...G....G...G.........G..
+                ...G....G...G.P.C.....G..
+                ...G....G...G...GC....G..
+                ...G.......G...GGGG......
+                ...........CG............
+                .......CGGGGGC........GGG
+                `,
+                // Nivel 3
+                `
+                ...CCCCCGGGGGC.....GGGG..
+                ........GC.........G.....
+                ...GGG..G......CGGGG.....
+                ....CG......G........GG..
+                ....CG......GC.......GG..
+                ....CG..G...PG....G..CG..
+                ....CG..GC...G....G..GG..
+                ...GGG..GGG....PGGG....C.
+                ...G....CGG.....GC.....C.
+                .........CG....CGC...SSC.
+                ...J.....CG....CGC...SSC.
+                ...G....CGG.....GC.....C.
+                ...GGG..GGG.....GGG....C.
+                ....CG..GC...G....G..GG..
+                ....CG..G....G...PG..CG..
+                ....CG......G........GG..
+                ....CG......G........GG..
+                ...GGG..G......CGGGG.....
+                ........GC.........G.....
+                ...CCCCCGGGGGC.....GGGG..
+                `,
+                // Nivel 4
+                `
+                ...CCCCCGG...........GG..
+                .........C...............
+                ...GGG......GGGCGG.......
+                ....CG......GP.......GG..
+                ....CG..GG...C.......GG..
+                ....CG..GG.......GG..CG..
+                ....CG..GGP......GG..GG..
+                ...GGG..GGG....PGGG....C.
+                ...GC...CGG...GGGC.....C.
+                ...........SS..CGC...SSC.
+                ...J.......SS..CGC...SSC.
+                ...GC...CGG.....GC.....C.
+                ...GGG..GGG...GGGGG....C.
+                ....CG..GGC......GG..GG..
+                ....CG.PGG.......GG..CG..
+                ....CG..G............GG..
+                ....CG......GP......PGG..
+                ...GGG......GGGCGG.......
+                .........C...............
+                ...CCCCCGG...........GG..
+                `,
+                // Nivel 5
+                `
+                GGGGGGCCCCCGGGGGGGGG.....
+                ..........GC..GGCCCC..C..
+                ......................C..
+                GG.....G..............G..
+                GG..CGGGGGG........GP.G..
+                GG..CG.P.CG...GGG..GGGG..
+                CG..CG....G.....G......C.
+                ..........G...C.G......C.
+                C.........G...GGG......C.
+                CG...CGGGGGSS...G....SSC.
+                CG.J.CGGGGGSS...G....SSC.
+                C.........G...GGG......C.
+                C.........G.....G......C.
+                GG..CG....G...CCG......C.
+                GG..CG.P.CG...GGG..GGGG..
+                GG..CGGGGGG........GP.G..
+                GG.....G..............G..
+                ......................C..
+                ..........GC.PGGCCCC..C..
+                GGGGGGCCCCCGGGGGGGGG.....
+                `,
+                // Nivel 6
+                `
+                GGGGGGCCCCCGGGGGGGGG.....
+                ..........GCC...CCCC..C..
+                ......................C..
+                GG.....GG............GG..
+                GG..C...G....CG.....P.G..
+                GG..C...GC...CGGGGG..GG..
+                CG..G...G........PG....C.
+                ....GGGGG.........G....C.
+                C.........G...G..CG....C.
+                CG...C....GSS.GGGGG..SSC.
+                CG.J.C....GSS.GGGGG..SSC.
+                C.........G...G..CG....C.
+                C...GGGGG.........G....C.
+                GG..G...G........PG....C.
+                GG..C..PGC...CGGGGG..GG..
+                GG..C...G....CG.......G..
+                GG.....GG............GG..
+                ......................C..
+                ..........GCC..PCCCC..C..
+                GGGGGGCCCCCGGGGGGGGG....G
+                `,
+                // Nivel 7
+                `
+                GGGGGGCCCCCGGGGGGGGG.....
+                .....G.....GCCCCCCCC..C..
+                .....G...............PC..
+                GG......CC...........GG..
+                GG..C...GGG..CCCCCC...G..
+                GG..C..PGC...CGGGGG..GG..
+                CG...G..GC...CG..P....GC.
+                .....GGGGC....G.......GC.
+                C.......GC....G........C.
+                CG...C..GC.SSGGGGGG..SSC.
+                CG.J.C..GC.SSGGGGGG..SSC.
+                C.......GC....G........C.
+                C....GGGG.....G.......GC.
+                GG...G..GC...CG...P...GC.
+                GG..C..PGC...CGGGGG..GG..
+                GG..C...GGG..CCCCCC...G..
+                GG......CC...........GG..
+                .....G................C..
+                .....G.....GCCCCCCCC..C..
+                GGGGGGCCCCCGGGGGGGGG.....
+                `,
+                // Nivel 8
+                `
+                GGGGGGCCCCCGGGGGGGGG.....
+                .....G.....GCCCCCCCC..C..
+                .....G...............PC..
+                GG......CC...........GG..
+                GG..C...GGG..C.......G...
+                GG..C..PG....CG..........
+                CG...G..GC...CG..G.P...C.
+                .....G..GGGGGG....GGGG.C.
+                C...GG..GG........G....C.
+                CG......GG.SS...GGG..SSC.
+                CG.J....GG.SS...GGG..SSC.
+                C...GG..GG........G....C.
+                C....G..GGGGGG....GGGG.C.
+                GG...G..GC...CG..G.....C.
+                GG..C...GP...CG..........
+                GG..C...GGG..C......PG...
+                GG......CC...........GG..
+                .....G...............PC..
+                .....G.....GCCCCCCCC..C..
+                GGGGGGCCCCCGGGGGGGGG.....
+                `
+            ],
+            Inundacion: [
+                // Nivel 1
+                `
+                ....GGGGGGG...........G.C
+                ....CCCC..............G..
+                ..G........P...GGC.......
+                ..G......GC....CGC...CC..
+                ..G......GGGG..CGGG..GGCC
+                ..GCCCC...........G......
+                ..GGGGG...........G......
+                .....CG..CGG...G..G..G...
+                ......G..G.....G..G..GP..
+                ............SS...........
+                ...J........SS...........
+                ......G..G.....G..G..GC..
+                .....CG..CGG...G..G..GC..
+                ..GGGGG...........G......
+                ..GCCCC...........G......
+                ..G.C....GGGG..CGGG..GGCC
+                ..G......GP....CGC...CCC.
+                ..G............GGC.......
+                ....CCCC..............G..
+                ....GGGGGGG.......CCCCG.C
+                `,
+                // Nivel 2
+                `
+                ....GGGGGGG...........G..
+                ....CCCC..............G..
+                ..G........P...GGC.......
+                ..G......GC....CGC...CCC.
+                ..G......GGGG..CGGG..GGCC
+                ..GCCCCC.................
+                ..GGG.....CCC............
+                .........CGGG..G..G..G...
+                .......GGG.....G..GGGGP..
+                ............SS...........
+                ...J........SS...........
+                .......GGG.....G..GGGGC..
+                .........CGGG..G..G..GC..
+                ..GGG.....CCC............
+                ..GCCCCC.................
+                ..G.C....GGGG..CGGG..GGCC
+                ..G......G.....CGP...CCC.
+                ..G............GG........
+                ....CCCC..............G..
+                ....GGGGGGGP......CCCCG..
+                `,
+                // Nivel 3
+                `
+                ....GGGGGGGG..........G..
+                ....CCC.P.............G..
+                ..G............GGP.......
+                ..G......GC....CG....CC..
+                ..G......GGGG..CGGG..GGGG
+                ..GCCCC..............G...
+                ..GGG................G...
+                ..........GGGGGG..GP.G...
+                ......GG.......G..G..G...
+                ............SS....G..G...
+                ...J........SS....G..G...
+                ......GG.......G..G..G...
+                ..........GGGGGG..G..G...
+                ..GGG................G...
+                ..GCCCC..............G...
+                ..G.C....GGGG..CGGG..GGGG
+                ..G......G.....CG....CC..
+                ..G............GG........
+                ....CCC.P.......G.....G..
+                ....GGGGGGGG....G.CCCCG..
+                `,
+                // Nivel 4
+                `
+                ....GG...G........CCCCG..
+                ....CCCC..............G..
+                ..G.........G..GG........
+                ..G......G.PG..CGP...CC..
+                ..G......GGGG..CGGG..GG..
+                ..GCCCC..............G...
+                ..GGG................G...
+                ..........GG...G..G..G...
+                ......GG..GC...G..G..G...
+                ......CC..GGSS.G.....SS..
+                ...J..CC..GGSS.G.....SS..
+                ......GG..GC...G..G..G...
+                ..........GG...G..G..G...
+                ..GGG................G...
+                ..GCCCCC.............G...
+                ..G......GGGG..CGGG..GG..
+                ..G......GP.G..CGP...CC..
+                ..G.........G..GG........
+                ....CCCC.......P......G..
+                ....GG...G........CCCCG..
+                `,
+                // Nivel 5
+                `
+                GGGGGGGGGGGGG...G.C...G..
+                ....CCCC....G...G....PG..
+                ..G.........G..GG....GG..
+                ..G........PG..CG.....G..
+                ..G......GGGG............
+                ..GC.....................
+                ..GG..............GGG..CC
+                G.....CG..GGGGGG..G......
+                G.....GG..GC...G..G......
+                G.....CC....SS.G..G..SS..
+                G..J..CC....SS.G..G..SS..
+                G.....GG..GC...G..G......
+                G.....CG..GGGGGG..G......
+                ..GG..............GGG..CC
+                ..GC.....................
+                ..G......GGGG............
+                ..G......PCCG..CG....PG..
+                ..G.........G..GG....GG..
+                ....CCCC....G..PG....GG..
+                GGGGGGGGGGGGG...G.CCCCG..
+                `,
+                // Nivel 6
+                `
+                GGGGGGGGGGGGGGGGGGGGGGG..
+                G.................C......
+                G........................
+                GCCCCC.........CG.....G..
+                GGGGGGC..CGGGGGGG..P..G..
+                C..................CGGG..
+                C.....................G..
+                C......C..CGGGGCC.....C..
+                C.....PG..G....GC..G.....
+                C...CGGG....SS.....G.SS..
+                C..JCGGG....SS.....G.SS..
+                C......G..G....GC..G.....
+                C......C..CGGGGCC.....C..
+                C.....................G..
+                C...............P..CGGG..
+                GGGGGGC..CGGGGGGG..C..G..
+                GCCCCC.....P...CG.....G..
+                G....................P...
+                G.................C......
+                GGGGGGGGGGGGGGGGGGGGGGG..
+                `,
+                // Nivel 7
+                `
+                GGGGGGGGGGGGGGGGGGGGGGG..
+                G.........CCCCC...C......
+                G........................
+                GCC...GG.......PG.....G..
+                GGG...CG..GGG..GG..P..G..
+                C.....CG...........CGGG..
+                C....GGG..............G..
+                C......G..CGGGGCC........
+                C.....PG..G....GC..G.....
+                C...CGGG....SS.....G.SS..
+                C..JCGGG....SS.....G.SS..
+                C......G..G....GC..G.....
+                C......G..CGGGGCC........
+                C....GGG..............G..
+                C.....CG...........CGGG..
+                GGG...CG..GGG..GG..C..G..
+                GCC...GG...P...CG.....G..
+                G....................P...
+                G.........CCCCC...C......
+                GGGGGGGGGGGGGGGGGGGGGGG..
+                `,
+                // Nivel 8
+                `
+                GG...........GGGGGGGGGG..
+                GC...........GCCCC.......
+                GC......GGG..G.....P.....
+                GC..G...G........GGG..G..
+                GG..GC..G...P....G....G..
+                C...GG..CGGGGGC..C....G..
+                C...................CGG..
+                C........................
+                C...G...G..GGG..C........
+                C...G...G..GSS..G..C.SS..
+                C.J.GP..G..GSS..G..C.SS..
+                C...G...G..GGG..C........
+                C........................
+                C...................CGG..
+                C...GG..CGGGGGC..C....G..
+                GG..GC..G........GP...G..
+                GC..G...G........GGG.PG..
+                GC......GGG..GP..........
+                GC...........GCCCCC......
+                GG...........GGGGGGGGGG..
+                `
+            ],
+            Erupcion: [
+                // Nivel 1
+                `
+                GGGGCCCGGG....GGGGGGGGG..
+                G.........CCCCC..........
+                G........................
+                GCC...GGP.........C...GG.
+                GGG....G....G.....CG..G..
+                C......G....G.....CGGGG..
+                C......G....GCC.......G..
+                C......G...GGGG..........
+                C......G......C..GGG.....
+                C..................G.SS..
+                C..J..............PG.SS..
+                C......G......C..GGG.....
+                C......G...GGGG..........
+                C......G....G.........G..
+                C......G....G.....CGGGG..
+                GGG....G....GP....CG..G..
+                GCC...GG..........C...GG.
+                G........................
+                G.........CCCCC..........
+                GGGGCCCGGG....GGGGGGGGG..
+                `,
+                // Nivel 2
+                `
+                GGGGCCCGGG....GGGGGGGGGGG
+                G.........CCCCC..........
+                G........................
+                GCC...GGP.........CG..G..
+                GGG....G...GGG....CG.PG..
+                C......G...G......CGGGG..
+                C......G...G.CC.......G..
+                C...G..G...GGGG..........
+                C...GGGG......C..GGG.....
+                C..................G.SS..
+                C..J..............PG.SS..
+                C...GGGG......C..GGG.....
+                C...G..G...GGGG..........
+                C......G...G..........G..
+                C......G...G.P....CGGGG..
+                GGG....G...GGG....CG..G..
+                GCC...GG..........CG..G..
+                G........................
+                G.........CCCCC..........
+                GGGGCCCGGG....GGGGGGGGGGG
+                `,
+                // Nivel 3
+                `
+                GGGGCCCGGG...GGGGGGGGGGGG
+                G.........CCCGC..........
+                G........................
+                GC..G..GC.........CG..GG.
+                GG..G..G...GGGG...CG..G..
+                C...G..G...G......CGGGG..
+                C...G..G...G..P.......G..
+                C...G..G...GGGG..........
+                C...GGGGC.....C..GGG.....
+                C..................G.SS..
+                C..J..............PG.SS..
+                C...GGGGC.....C..GGG.....
+                C...G..G...GGGG..........
+                C...G..G...G..........G..
+                C...G..G...G......CGGGG..
+                GG..G..G...GGGG...CGP.G..
+                GC..G.PGC.........CG..GG.
+                G........................
+                G.........CCCGC..........
+                GGGGCCCGGG...GGGGGGGGGGGG
+                `,
+                // Nivel 4
+                `
+                GGGGGGGGGGCCCGGGGGGGGGG..
+                GC........CCCGC..........
+                GC.......................
+                GC..GGGGC.........CGCCG..
+                GG..G..GC..GGGG...CGCCG..
+                C...G..GC..GC.....CGGGG..
+                C...G......GC.P.......G..
+                C...GP.....GGGG.......C..
+                C...GGGGC..G.....CGG.....
+                C...G.......SS.....G.SS..
+                C.J.G.......SS....PG.SS..
+                C...GGGGC..GC....CGG.....
+                C...G......GGGG..........
+                C...G......GC.........G..
+                C...G..GC..GC.....CGGGG..
+                GG..G..GC..GGGG...CGP.G..
+                GC..GGGGC.........CG..G..
+                GC....................C..
+                GC........CCCGC..........
+                GGGGGGGGGGCCCGGGGGGGGGG..
+                `,
+                // Nivel 5
+                `
+                GGGGGGGGGGCCCGGGGGGGGGG..
+                GC........CCCCC..........
+                GC.......................
+                GC..GGGGC...........PCG..
+                GG..G..GGGGGGGG..G...CG..
+                C...G.PGC........G...GG..
+                C................G....G..
+                C..........GGGGGGG.C..C..
+                C...GGGGC.....G..CGG.....
+                C...G..GC...SSG......SS..
+                C.J.G..GC...SSGP.....SS..
+                C...GGGGC.....G..CGG.....
+                C..........GGGGGGG.C..C..
+                C................G....G..
+                C...G..GC........G...GG..
+                GG..G..GGGGGGGG..GC..PG..
+                GC..GGGGC........P....G..
+                GC....................C..
+                GC........CCCCC..........
+                GGGGGGGGGGCCCGGGGGGGGGG..
+                `,
+                // Nivel 6
+                `
+                GG...........GGGGGGGGGG..
+                GC.......................
+                GC..GGGGGGC.....P........
+                GC..GC..........GGGGGGG..
+                GG..GC.......C..G........
+                C...GC..GGG..G..C........
+                C.......G....G.....GC....
+                C.......GP...G.....G.....
+                C...C...G..GGG..G..G.....
+                C...G...G...SS..G..G.SS..
+                C.J.G...G...SS..G..G.SS..
+                C...C...G..GGG..G..G.....
+                C.......G....G.....G.....
+                C.......G....G.....GC....
+                C...GC..GGG..G..C........
+                GG..GC.......G..G.P......
+                GC..G........C..GGGGGGG..
+                GC..GCGGGGC..............
+                GC......P........P.......
+                GG...........GGGGGGGGGG..
+                `,
+                // Nivel 7
+                `
+                GG...........GGGGGGGGGG..
+                GC...........GCCCC.......
+                GC......GGGGGG.....P.....
+                GC..G...............GGG..
+                GG..GC...................
+                C...GGGGGGGGGGGGG........
+                C.......G....G.....GC....
+                C.......GP...G.....G.....
+                C...C...G..GGG..G..G.....
+                C...G.......SS..G..G.SS..
+                C.J.G.......SS..G..G.SS..
+                C...C...G..GGG..G..G.....
+                C.......G....G.....G.....
+                C.......G....G.....GC....
+                C...GGGGGGGGGGGGG........
+                GG..GC...................
+                GC..G..............PGGG..
+                GC......GGGGGG...........
+                GC......P....GCCCCC......
+                GG...........GGGGGGGGGG..
+                `,
+                // Nivel 8
+                `
+                GG...........GGGGGGGGGG..
+                GC...........GCCCC.......
+                GC......GGG..G.....P.....
+                GC..G...G........GGG..G..
+                GG..GC..G...P....G....G..
+                C...GG..CGGGGGC..C....G..
+                C...................CGG..
+                C........................
+                C...G...G..GGG..C........
+                C...G...G..GSS..G..C.SS..
+                C.J.GP..G..GSS..G..C.SS..
+                C...G...G..GGG..C........
+                C........................
+                C...................CGG..
+                C...GG..CGGGGGC..C....G..
+                GG..GC..G........GP...G..
+                GC..G...G........GGG..G..
+                GC......GGG..GP..........
+                GC......P....GCCCCC......
+                GG...........GGGGGGGGGG..
+                `
+            ]
+        };
+
+        function parseLevelMap(cat, level) {
+            const raw = (LEVEL_MAPS[cat] || [])[level - 1];
+            if (!raw) return null;
+
+            const rows = (Array.isArray(raw) ? raw : String(raw).split('\n'))
+                .map(r => r.trim())
+                .filter(r => r.length > 0);
+
+            const cols = Math.max(...rows.map(r => r.length));
+            rows.forEach((r, i) => {
+                if (r.length !== cols) console.warn(`[Mapa ${cat} ${level}] la fila ${i + 1} tiene ${r.length} columnas (las demás ${cols}).`);
+            });
+
+            const tile = Math.floor(Math.min(SCREEN_W / cols, SCREEN_H / rows.length));
+            const offX = Math.floor((SCREEN_W - cols * tile) / 2);
+            const offY = Math.floor((SCREEN_H - rows.length * tile) / 2);
+
+            const map = { tile, solids: [], cracks: [], survivors: [], exits: [], player: null };
+
+            for (let r = 0; r < rows.length; r++) {
+                for (let c = 0; c < rows[r].length; c++) {
+                    const pos = { x: offX + c * tile + tile / 2, y: offY + r * tile + tile / 2 };
+                    switch (rows[r][c].toUpperCase()) {
+                        case 'G': map.solids.push(pos); break;
+                        case 'C': map.cracks.push(pos); break;
+                        case 'P': map.survivors.push(pos); break;
+                        case 'S': map.exits.push(pos); break;
+                        case 'J': map.player = pos; break;
+                    }
+                }
+            }
+            return map;
+        }
+
+        // Nombre obligatorio antes de comenzar
+        const nameInput = document.getElementById('player-name');
+        const startButton = document.getElementById('btn-start-game');
+        const nameHint = document.getElementById('name-hint');
+        const validPlayerName = value => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,10}$/.test(value.trim());
+        nameInput.addEventListener('input', () => {
+            const clean = nameInput.value.trim();
+            const valid = validPlayerName(clean);
+            startButton.disabled = !valid;
+            nameHint.textContent = valid ? `¡Hola, ${clean}! Ya podés jugar.` : 'Escribí entre 3 y 10 letras. No uses números ni espacios.';
+            nameHint.style.color = valid ? '#2ecc71' : '#f1c40f';
+        });
+        startButton.onclick = function() {
+            const clean = nameInput.value.trim();
+            if (!validPlayerName(clean)) return;
+            GameState.playerName = clean;
+            SFX.init();
+            const overlay = document.getElementById('start-overlay');
+            if (overlay) overlay.remove();
+            if (game.scene.keys['BootScene']) {
+                game.scene.stop('BootScene');
+                game.scene.start('CatastropheSelectScene');
+            }
+        };
+
+        function BootScene() { Phaser.Scene.call(this, { key: 'BootScene' }); }
+        BootScene.prototype = Object.create(Phaser.Scene.prototype);
+
+        BootScene.prototype.preload = function () {
+            const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+            gfx.fillStyle(0xf1c40f); gfx.fillCircle(12, 12, 12); gfx.generateTexture('survivorTexture', 24, 24); gfx.clear();
+            gfx.fillStyle(0xe74c3c); gfx.fillTriangle(15, 0, 0, 30, 30, 30); gfx.generateTexture('debrisTexture', 30, 30); gfx.clear();
+            
+            gfx.fillStyle(0x2ecc71); gfx.fillRect(0, 0, 60, 60);
+            gfx.lineStyle(3, 0xffffff); gfx.strokeRect(0, 0, 60, 60);
+            gfx.generateTexture('safeZoneTexture', 60, 60); gfx.clear();
+
+            gfx.fillStyle(0xffffff); gfx.fillRect(0, 0, 26, 50);
+            gfx.fillStyle(0xe74c3c); gfx.fillRect(4, 20, 18, 10); gfx.fillRect(8, 16, 10, 18);
+            gfx.fillStyle(0x3498db); gfx.fillRect(2, 40, 22, 6);
+            gfx.generateTexture('ambulanceTexture', 26, 50); gfx.clear();
+
+            gfx.fillStyle(0x3498db); gfx.fillCircle(4, 4, 4); gfx.generateTexture('waterParticle', 8, 8); gfx.clear();
+            gfx.fillStyle(0xff6600); gfx.fillCircle(3, 3, 3); gfx.generateTexture('fireParticle', 6, 6); gfx.clear();
+
+            if (window.GAME_ART && window.GAME_ART.wall) {
+                this.load.image('wallTexture', window.GAME_ART.wall);
+            } else {
+                gfx.fillStyle(0x7f8c8d); gfx.fillRect(0, 0, 40, 40); gfx.generateTexture('wallTexture', 40, 40); gfx.clear();
+            }
+
+            if (window.GAME_ART && window.GAME_ART.crack) {
+                this.load.image('crackTexture', window.GAME_ART.crack);
+            } else {
+                gfx.fillStyle(0x111111); gfx.fillRect(0, 0, 36, 36); gfx.lineStyle(2, 0xe74c3c); gfx.strokeRect(0, 0, 36, 36); gfx.generateTexture('crackTexture', 36, 36); gfx.clear();
+            }
+
+            if (window.GAME_ART) {
+                if (window.GAME_ART.bg_Terremoto) this.load.image('bg_Terremoto', window.GAME_ART.bg_Terremoto);
+                if (window.GAME_ART.bg_Inundacion) this.load.image('bg_Inundacion', window.GAME_ART.bg_Inundacion);
+                if (window.GAME_ART.bg_Erupcion) this.load.image('bg_Erupcion', window.GAME_ART.bg_Erupcion);
+            }
+
+            gfx.fillStyle(0xffffff); gfx.fillRect(0, 0, 100, 100); gfx.generateTexture('hazardTexture', 100, 100);
+
+            this.createRescuerTextures();
+            this.setupTouchListeners();
+        };
+
+        BootScene.prototype.createRescuerTextures = function () {
+            [{ key: 'player_0', scale: 1, label: '0' }, { key: 'player_1', scale: 1.1, label: '1' }, { key: 'player_2', scale: 1.25, label: '2' }].forEach(st => {
+                const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+                gfx.fillStyle(0xe74c3c); gfx.fillCircle(24, 24, 18 * st.scale);
+                gfx.fillStyle(0x900c3f); gfx.fillCircle(24, 20, 10);
+                if (st.label === '1') { gfx.fillStyle(0x2980b9); gfx.fillCircle(14, 30, 8); }
+                else if (st.label === '2') { gfx.fillStyle(0x2980b9); gfx.fillCircle(10, 28, 8); gfx.fillCircle(38, 28, 8); }
+                gfx.generateTexture(st.key, 48, 48);
+            });
+        };
+
+        BootScene.prototype.setupTouchListeners = function () {
+            const bindTouch = (id, key) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('touchstart', (e) => { e.preventDefault(); GameState.mobileInput[key] = true; });
+                el.addEventListener('touchend', (e) => { e.preventDefault(); GameState.mobileInput[key] = false; });
+                el.addEventListener('mousedown', () => { GameState.mobileInput[key] = true; });
+                el.addEventListener('mouseup', () => { GameState.mobileInput[key] = false; });
+            };
+            bindTouch('btn-up', 'up'); bindTouch('btn-down', 'down');
+            bindTouch('btn-left', 'left'); bindTouch('btn-right', 'right');
+            bindTouch('btn-action', 'action');
+        };
+
+        BootScene.prototype.create = function () {};
+
+        function CatastropheSelectScene() { Phaser.Scene.call(this, { key: 'CatastropheSelectScene' }); }
+        CatastropheSelectScene.prototype = Object.create(Phaser.Scene.prototype);
+
+        CatastropheSelectScene.prototype.create = function () {
+            this.add.text(400, 75, 'RUTA DE RESCATE', { fontSize: '38px', color: '#f39c12', fontStyle: 'bold' }).setOrigin(0.5);
+            this.add.text(400, 120, 'Seleccioná el modo de juego:', { fontSize: '18px', color: '#cccccc' }).setOrigin(0.5);
+
+            const options = [
+                { name: '1. Terremoto', key: 'Terremoto', color: 0x8b4513, y: 195 },
+                { name: '2. Inundación', key: 'Inundacion', color: 0x1e90ff, y: 280 },
+                { name: '3. Erupción Volcánica', key: 'Erupcion', color: 0xd35400, y: 365 }
+            ];
+
+            options.forEach(opt => {
+                const unlockedLvl = GameState.progress[opt.key];
+                const btn = this.add.rectangle(400, opt.y, 360, 60, opt.color).setInteractive({ useHandCursor: true });
+                this.add.text(400, opt.y - 10, opt.name, { fontSize: '22px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+                this.add.text(400, opt.y + 15, `Progreso: Nivel ${unlockedLvl}/8`, { fontSize: '14px', color: '#f1c40f' }).setOrigin(0.5);
+                btn.on('pointerdown', () => {
+                    SFX.init();
+                    GameState.catastrophe = opt.key;
+                    this.scene.start('LevelSelectScene');
+                });
+            });
+
+            // Récord HÉROE
+            const hero = getHeroRecord();
+            const heroText = hero
+                ? `🏆 HÉROE: ${hero.name.toUpperCase()}  —  TIEMPO: ${formatTime(hero.seconds)}`
+                : '🏆 HÉROE: Sin récord aún';
+
+            const heroBox = this.add.rectangle(400, 480, 520, 50, 0x111122, 0.9);
+            heroBox.setStrokeStyle(2, 0xf39c12);
+            this.add.text(400, 480, heroText, { fontSize: '18px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+        };
+
+        function LevelSelectScene() { Phaser.Scene.call(this, { key: 'LevelSelectScene' }); }
+        LevelSelectScene.prototype = Object.create(Phaser.Scene.prototype);
+
+        LevelSelectScene.prototype.create = function () {
+            const cat = GameState.catastrophe;
+            const maxUnlocked = GameState.progress[cat];
+
+            this.add.text(400, 70, `MODO: ${cat.toUpperCase()}`, { fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            this.add.text(400, 115, 'Seleccioná un Nivel:', { fontSize: '18px', color: '#cccccc' }).setOrigin(0.5);
+
+            for (let i = 1; i <= 8; i++) {
+                const x = 160 + ((i - 1) % 4) * 160;
+                const y = 200 + Math.floor((i - 1) / 4) * 130;
+                const isUnlocked = i <= maxUnlocked;
+                const stars = GameState.progress.stars[`${cat}_${i}`] || 0;
+
+                const boxColor = isUnlocked ? 0x27ae60 : 0x7f8c8d;
+                const btn = this.add.rectangle(x, y, 130, 90, boxColor).setInteractive({ useHandCursor: isUnlocked });
+
+                this.add.text(x, y - 18, `Nivel ${i}`, { fontSize: '20px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+                
+                if (isUnlocked) {
+                    this.add.text(x, y + 15, '★'.repeat(stars) + '☆'.repeat(3 - stars), { fontSize: '18px', color: '#f1c40f' }).setOrigin(0.5);
+                    btn.on('pointerdown', () => {
+                        GameState.currentLevel = i;
+                        GameState.totalRescued = 0;
+                        this.scene.start('GameScene');
+                    });
+                } else {
+                    this.add.text(x, y + 15, '🔒 Bloqueado', { fontSize: '13px', color: '#ecf0f1' }).setOrigin(0.5);
+                }
+            }
+
+            const btnBack = this.add.rectangle(400, 520, 200, 45, 0x34495e).setInteractive({ useHandCursor: true });
+            this.add.text(400, 520, '◄ Cambiar Modo', { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
+            btnBack.on('pointerdown', () => this.scene.start('CatastropheSelectScene'));
+        };
+
+        function GameScene() { Phaser.Scene.call(this, { key: 'GameScene' }); }
+        GameScene.prototype = Object.create(Phaser.Scene.prototype);
+
+        GameScene.prototype.create = function () {
+            const catData = CATASTROPHE_DATA[GameState.catastrophe];
+            const levelConfig = catData.levels[GameState.currentLevel - 1];
+
+            SFX.startBGM(200);
+
+            this.isPaused = false;
+            this.baseSpeed = 220;
+            this.carrying = 0;
+            this.maxCapacity = 2;
+            this.playerHealth = 6;
+            this.initialHealth = 6;
+            this.deliveredSurvivors = 0;
+            this.lostSurvivors = 0;
+            this.levelFinished = false;
+            this.targetSurvivors = levelConfig.survivorCount;
+
+            // Mapa propio de este nivel (null = al azar como antes)
+            const map = parseLevelMap(GameState.catastrophe, GameState.currentLevel);
+            if (map && map.survivors.length > 0) this.targetSurvivors = map.survivors.length;
+            this.initialTime = levelConfig.timeLimit;
+            this.timeLeft = levelConfig.timeLimit;
+            this.crackCooldown = 0;
+
+            this.droppedPositions = [];
+
+            this.cameras.main.setBackgroundColor(catData.color);
+
+            // Fondo temático según catástrofe
+            const bgKey = 'bg_' + GameState.catastrophe;
+            if (this.textures.exists(bgKey)) {
+                this.add.image(400, 300, bgKey).setDisplaySize(800, 600).setDepth(-10);
+            }
+
+            this.walls = this.physics.add.staticGroup();
+            this.cracks = this.physics.add.staticGroup();
+            this.survivors = this.physics.add.group();
+            this.debrisGroup = this.physics.add.group();
+            this.safeZonesGroup = this.physics.add.staticGroup();
+
+            if (map && map.exits.length > 0) {
+                map.exits.forEach(pos => {
+                    this.safeZonesGroup.create(pos.x, pos.y, 'safeZoneTexture').setDisplaySize(map.tile, map.tile).refreshBody();
+                });
+            } else if (GameState.currentLevel >= 4) {
+                this.safeZonesGroup.create(400, 300, 'safeZoneTexture');
+                this.safeZonesGroup.create(720, 300, 'safeZoneTexture');
+            } else {
+                this.safeZonesGroup.create(720, 300, 'safeZoneTexture');
+            }
+
+            let roadGfx = this.add.graphics();
+            roadGfx.setDepth(-5);
+            roadGfx.fillStyle(0x222222, 0.4);
+            roadGfx.fillRect(735, 0, 50, 600);
+
+            if (map) {
+                map.solids.forEach(pos => this.walls.create(pos.x, pos.y, 'wallTexture').setDisplaySize(map.tile, map.tile).refreshBody());
+                const cs = Math.round(map.tile * 0.9);
+                map.cracks.forEach(pos => this.cracks.create(pos.x, pos.y, 'crackTexture').setDisplaySize(cs, cs).refreshBody());
+            } else {
+                for (let i = 0; i < levelConfig.wallCount; i++) {
+                    this.walls.create(Phaser.Math.Between(100, 680), Phaser.Math.Between(80, 520), 'wallTexture').setDisplaySize(40, 40).refreshBody();
+                }
+
+                for (let i = 0; i < levelConfig.crackCount; i++) {
+                    this.cracks.create(Phaser.Math.Between(120, 660), Phaser.Math.Between(80, 520), 'crackTexture').setDisplaySize(36, 36).refreshBody();
+                }
+            }
+
+            if (map && map.survivors.length > 0) {
+                map.survivors.forEach(pos => {
+                    let s = this.survivors.create(pos.x, pos.y, 'survivorTexture');
+                    s.setImmovable(true);
+                    s.setData('spawnX', pos.x);
+                    s.setData('spawnY', pos.y);
+                });
+            } else {
+                for (let i = 0; i < this.targetSurvivors; i++) {
+                    let validPos = this.getValidSpawnPosition();
+                    let s = this.survivors.create(validPos.x, validPos.y, 'survivorTexture');
+                    s.setImmovable(true);
+                    s.setData('spawnX', validPos.x);
+                    s.setData('spawnY', validPos.y);
+                }
+            }
+
+            const startPos = (map && map.player) ? map.player : { x: 80, y: 300 };
+            this.player = this.physics.add.sprite(startPos.x, startPos.y, 'player_0');
+            if (map) this.player.body.setSize(Math.min(28, map.tile - 4), Math.min(28, map.tile - 4)); // para pasar por pasillos de 1 casilla
+            this.player.setCollideWorldBounds(true);
+
+            const particleTex = GameState.catastrophe === 'Inundacion' ? 'waterParticle' : 'fireParticle';
+            this.particles = this.add.particles(0, 0, particleTex, {
+                speed: { min: 20, max: 50 },
+                scale: { start: 1, end: 0 },
+                blendMode: 'ADD',
+                emitting: false
+            });
+
+            this.ambulanceWarnText = this.add.text(760, 30, '🚑 ¡AMBULANCIA EN CAMINO!', {
+                fontSize: '13px', color: '#ff3333', fontStyle: 'bold', backgroundColor: '#000000dd', padding: { x: 8, y: 4 }
+            }).setOrigin(1, 0.5).setVisible(false);
+
+            this.hasAmbulance = levelConfig.hasAmbulance;
+            if (this.hasAmbulance) {
+                this.ambulance = this.physics.add.sprite(760, -60, 'ambulanceTexture');
+                this.ambulanceActive = false;
+                
+                this.time.delayedCall(3000, () => {
+                    this.scheduleAmbulance();
+                });
+            }
+
+            this.hazardSpeed = levelConfig.hazardSpeed;
+            if (this.hazardSpeed > 0) {
+                let tintColor = 0x00aaff;
+                if (GameState.catastrophe === 'Erupcion') tintColor = 0xff3300;
+                else if (GameState.catastrophe === 'Terremoto') tintColor = 0x5d4037;
+
+                this.hazard = this.add.sprite(0, 0, 'hazardTexture').setOrigin(0, 0).setTint(tintColor).setAlpha(0.65);
+                this.physics.add.existing(this.hazard);
+                this.hazard.body.setAllowGravity(false);
+                this.hazard.body.setImmovable(true);
+                this.hazard.setDisplaySize(10, 600);
+            }
+
+            this.physics.add.collider(this.player, this.walls);
+            this.physics.add.overlap(this.player, this.debrisGroup, this.handleDebrisHit, null, this);
+            this.physics.add.overlap(this.player, this.cracks, this.handleCrackStep, null, this);
+            this.physics.add.overlap(this.player, this.safeZonesGroup, this.handleSafeZoneReached, null, this);
+
+            this.cursors = this.input.keyboard.createCursorKeys();
+            this.wasd = this.input.keyboard.addKeys({
+                up: Phaser.Input.Keyboard.KeyCodes.W, down: Phaser.Input.Keyboard.KeyCodes.S,
+                left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D,
+                pickupE: Phaser.Input.Keyboard.KeyCodes.E, pickupSpace: Phaser.Input.Keyboard.KeyCodes.SPACE,
+                esc: Phaser.Input.Keyboard.KeyCodes.ESC
+            });
+
+            this.debrisTimer = this.time.addEvent({
+                delay: levelConfig.spawnInterval, callback: this.spawnDebris, callbackScope: this, loop: true
+            });
+
+            this.levelTimer = this.time.addEvent({
+                delay: 1000, callback: () => {
+                    if (this.isPaused) return;
+                    this.timeLeft--;
+                    GameState.totalRunSeconds++;
+                    if (this.timeLeft === 10) SFX.startBGM(120);
+                    if (this.timeLeft <= 0) this.gameOver(false, '¡Se acabó el tiempo!');
+                }, loop: true
+            });
+
+            this.uiText = this.add.text(16, 14, `MODO: ${GameState.catastrophe}  |  NIVEL: ${GameState.currentLevel}/${GameState.maxLevels}`, { fontSize: '14px', color: '#ffffff', backgroundColor: '#000000bb', padding: { x: 9, y: 6 } }).setDepth(20);
+            this.clockText = this.add.text(400, 12, '', { fontSize: '30px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#000000dd', padding: { x: 14, y: 5 } }).setOrigin(0.5, 0).setDepth(20);
+            this.healthText = this.add.text(16, 54, '', { fontSize: '24px', color: '#ff5b68', backgroundColor: '#000000bb', padding: { x: 9, y: 5 } }).setDepth(20);
+            this.rescueText = this.add.text(784, 54, '', { fontSize: '21px', color: '#ffffff', backgroundColor: '#000000bb', padding: { x: 10, y: 6 }, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(20);
+            
+            const pauseBtn = this.add.rectangle(740, 30, 90, 32, 0x34495e).setInteractive({ useHandCursor: true });
+            this.add.text(740, 30, '⚙️ PAUSA', { fontSize: '13px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            pauseBtn.on('pointerdown', () => this.togglePauseMenu());
+
+            this.updateHUD();
+            this.createPauseOverlay();
+        };
+
+        GameScene.prototype.scheduleAmbulance = function () {
+            this.ambulanceTimer = this.time.addEvent({
+                delay: 6000,
+                callback: () => {
+                    if (this.isPaused || this.ambulanceActive) return;
+
+                    this.ambulanceWarnText.setVisible(true);
+                    this.time.delayedCall(1000, () => {
+                        this.ambulanceWarnText.setVisible(false);
+                        this.ambulanceActive = true;
+                        this.ambulance.body.setVelocity(0, 0);
+                        this.ambulance.setPosition(740, -60);
+                        this.tweens.add({
+                            targets: this.ambulance,
+                            x: 740, y: 660, duration: 4500, ease: 'Linear',
+                            onComplete: () => {
+                                if (!this.scene.isActive()) return;
+                                this.tweens.add({
+                                    targets: this.ambulance, x: 780, y: 660, duration: 450,
+                                    onComplete: () => this.tweens.add({
+                                        targets: this.ambulance, x: 780, y: -60, duration: 4500, ease: 'Linear',
+                                        onComplete: () => { this.ambulanceActive = false; this.ambulance.setPosition(780, -80); }
+                                    })
+                                });
+                            }
+                        });
+                    });
+                },
+                loop: true
+            });
+        };
+
+        GameScene.prototype.getValidSpawnPosition = function () {
+            let rx, ry, attempts = 0, isOverlap = true;
+
+            while (isOverlap && attempts < 100) {
+                rx = Phaser.Math.Between(80, 680);
+                ry = Phaser.Math.Between(80, 520);
+                isOverlap = false;
+                attempts++;
+
+                if (Phaser.Math.Distance.Between(rx, ry, 400, 300) < 70) isOverlap = true;
+
+                this.walls.getChildren().forEach(wall => {
+                    if (Phaser.Math.Distance.Between(rx, ry, wall.x, wall.y) < 45) isOverlap = true;
+                });
+
+                this.cracks.getChildren().forEach(crack => {
+                    if (Phaser.Math.Distance.Between(rx, ry, crack.x, crack.y) < 40) isOverlap = true;
+                });
+            }
+
+            return { x: rx, y: ry };
+        };
+
+        GameScene.prototype.update = function (time, delta) {
+            if (Phaser.Input.Keyboard.JustDown(this.wasd.esc)) {
+                this.togglePauseMenu();
+            }
+
+            if (this.isPaused) return;
+
+            if (this.hazardSpeed > 0 && this.hazard) {
+                let newWidth = this.hazard.displayWidth + (this.hazardSpeed * delta) / 1000;
+                let currentWidth = Math.min(newWidth, 750);
+                
+                this.hazard.setDisplaySize(currentWidth, 600);
+                this.hazard.body.setSize(currentWidth, 600);
+
+                let playerRect = this.player.getBounds();
+                let hazardRect = new Phaser.Geom.Rectangle(0, 0, currentWidth, 600);
+
+                this.survivors.getChildren().forEach((survivor) => {
+                    if (survivor.active) {
+                        let distanceToHazard = survivor.x - currentWidth;
+
+                        if (distanceToHazard <= 0) {
+                            survivor.destroy();
+                            this.lostSurvivors++;
+                            SFX.playHit();
+                            if (this.lostSurvivors >= 2) {
+                                this.gameOver(false, 'Se perdieron dos personas en la catástrofe. ¡Intentá otra vez!');
+                            } else if (this.deliveredSurvivors + this.lostSurvivors >= this.targetSurvivors) {
+                                this.completeLevel();
+                            }
+                        } else if (distanceToHazard < 120) {
+                            survivor.setTint(Math.floor(time / 150) % 2 === 0 ? 0xff0000 : 0xffffff);
+                        } else {
+                            survivor.clearTint();
+                        }
+                    }
+                });
+
+                if (Phaser.Geom.Intersects.RectangleToRectangle(playerRect, hazardRect)) {
+                    this.particles.emitParticleAt(this.player.x, this.player.y, 2);
+
+                    if (GameState.catastrophe === 'Erupcion') {
+                        this.playerHealth = 0;
+                        SFX.playHit();
+                        this.gameOver(false, '¡Fuiste consumido por la lava!');
+                    } else if (GameState.catastrophe === 'Inundacion') {
+                        if (!this.hazardDamageCooldown) {
+                            this.playerHealth--;
+                            SFX.playHit();
+                            this.cameras.main.shake(120, 0.01);
+                            
+                            if (this.playerHealth <= 0) {
+                                this.gameOver(false, '¡Te ahogaste en la inundación!');
+                            } else {
+                                this.hazardDamageCooldown = true;
+                                this.time.delayedCall(1500, () => { this.hazardDamageCooldown = false; });
+                            }
+                        }
+                    } else {
+                        if (!this.hazardDamageCooldown) {
+                            this.playerHealth--;
+                            SFX.playHit();
+                            if (this.playerHealth <= 0) {
+                                this.gameOver(false, '¡Sucumbiste al terremoto!');
+                            } else {
+                                this.hazardDamageCooldown = true;
+                                this.time.delayedCall(1200, () => { this.hazardDamageCooldown = false; });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (this.crackCooldown > 0) this.crackCooldown -= delta;
+
+            let currentSpeed = this.baseSpeed;
+            if (this.carrying === 1) currentSpeed *= 0.78;
+            else if (this.carrying === 2) currentSpeed *= 0.50;
+
+            this.player.setVelocity(0);
+
+            let moveX = 0, moveY = 0;
+            const mob = GameState.mobileInput;
+
+            if (this.cursors.left.isDown || this.wasd.left.isDown || mob.left) moveX = -1;
+            if (this.cursors.right.isDown || this.wasd.right.isDown || mob.right) moveX = 1;
+            if (this.cursors.up.isDown || this.wasd.up.isDown || mob.up) moveY = -1;
+            if (this.cursors.down.isDown || this.wasd.down.isDown || mob.down) moveY = 1;
+
+            if (moveX !== 0 && moveY !== 0) { moveX *= 0.7071; moveY *= 0.7071; }
+
+            this.player.setVelocity(moveX * currentSpeed, moveY * currentSpeed);
+
+            if (moveX !== 0 || moveY !== 0) {
+                let angle = Math.atan2(moveY, moveX);
+                this.player.setRotation(angle + Math.PI / 2);
+            }
+
+            if (Phaser.Input.Keyboard.JustDown(this.wasd.pickupE) || Phaser.Input.Keyboard.JustDown(this.wasd.pickupSpace) || mob.action) {
+                this.tryAction();
+                mob.action = false;
+            }
+
+            this.checkAmbulanceRescue();
+            this.updateHUD();
+        };
+
+        GameScene.prototype.tryAction = function () {
+            this.tryPickupSurvivor();
+        };
+
+        GameScene.prototype.checkAmbulanceRescue = function () {
+            if (!this.hasAmbulance || !this.ambulanceActive || this.levelFinished) return;
+            const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.ambulance.x, this.ambulance.y);
+            if (dist < 58) {
+                let didAction = false;
+                if (this.carrying > 0) {
+                    this.deliveredSurvivors += this.carrying;
+                    GameState.totalRescued += this.carrying;
+                    this.carrying = 0;
+                    this.updatePlayerSprite();
+                    didAction = true;
+                }
+                if (this.playerHealth < this.initialHealth) {
+                    this.playerHealth = this.initialHealth;
+                    didAction = true;
+                }
+                if (didAction) {
+                    SFX.playDeliver();
+                    this.cameras.main.flash(180, 80, 255, 140);
+                    this.updateHUD();
+                    if (this.deliveredSurvivors + this.lostSurvivors >= this.targetSurvivors) {
+                        this.completeLevel();
+                    }
+                }
+            }
+        };
+
+        GameScene.prototype.handleCrackStep = function (player, crack) {
+            if (this.levelFinished) return;
+            if (crack) {
+                const lastHit = crack.getData('lastHit') || 0;
+                if (this.time.now - lastHit < 1500) return;
+                crack.setData('lastHit', this.time.now);
+            }
+            this.playerHealth--;
+            this.cameras.main.shake(150, 0.02);
+            SFX.playHit();
+
+            if (this.carrying > 0) {
+                this.carrying--;
+                this.updatePlayerSprite();
+                SFX.playDrop();
+                const respawnPos = this.findNearestFreePosition(this.player.x, this.player.y);
+                let newSurvivor = this.survivors.create(respawnPos.x, respawnPos.y, 'survivorTexture');
+                newSurvivor.setImmovable(true);
+                newSurvivor.setData('spawnX', respawnPos.x);
+                newSurvivor.setData('spawnY', respawnPos.y);
+            }
+            this.updateHUD();
+            if (this.playerHealth <= 0) this.gameOver(false, '¡El rescatista perdió toda su energía!');
+        };
+
+        GameScene.prototype.findNearestFreePosition = function (originX, originY) {
+            const step = 32;
+            for (let radius = 1; radius <= 12; radius++) {
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+                        const x = Phaser.Math.Clamp(originX + dx * step, 30, 770);
+                        const y = Phaser.Math.Clamp(originY + dy * step, 70, 570);
+                        let blocked = false;
+                        this.walls.getChildren().forEach(o => { if (Phaser.Math.Distance.Between(x, y, o.x, o.y) < 30) blocked = true; });
+                        this.cracks.getChildren().forEach(o => { if (Phaser.Math.Distance.Between(x, y, o.x, o.y) < 24) blocked = true; });
+                        this.survivors.getChildren().forEach(o => { if (o.active && Phaser.Math.Distance.Between(x, y, o.x, o.y) < 28) blocked = true; });
+                        if (!blocked && Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) >= 42) return { x, y };
+                    }
+                }
+            }
+            return { x: Phaser.Math.Clamp(originX + 48, 30, 770), y: Phaser.Math.Clamp(originY + 48, 70, 570) };
+        };
+
+        GameScene.prototype.updatePlayerSprite = function () {
+            if (this.carrying === 0) this.player.setTexture('player_0');
+            else if (this.carrying === 1) this.player.setTexture('player_1');
+            else if (this.carrying === 2) this.player.setTexture('player_2');
+        };
+
+        GameScene.prototype.spawnDebris = function () {
+            if (this.isPaused) return;
+
+            let x = GameState.catastrophe === 'Terremoto' ? Phaser.Math.Between(this.player.x - 100, this.player.x + 100) : Phaser.Math.Between(50, 750);
+            let y = GameState.catastrophe === 'Terremoto' ? Phaser.Math.Between(this.player.y - 100, this.player.y + 100) : Phaser.Math.Between(50, 550);
+
+            x = Phaser.Math.Clamp(x, 50, 750);
+            y = Phaser.Math.Clamp(y, 50, 550);
+
+            let warning = this.add.circle(x, y, 15, 0x000000, 0.5);
+
+            this.time.delayedCall(700, () => {
+                warning.destroy();
+                if (this.isPaused) return;
+                let debris = this.debrisGroup.create(x, y, 'debrisTexture');
+                this.time.delayedCall(1800, () => { debris.destroy(); });
+            });
+        };
+
+        GameScene.prototype.tryPickupSurvivor = function () {
+            if (this.carrying >= this.maxCapacity) return;
+
+            this.survivors.getChildren().forEach((survivor) => {
+                let dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, survivor.x, survivor.y);
+                if (dist < 45 && survivor.active) {
+                    survivor.destroy();
+                    this.carrying++;
+                    this.updatePlayerSprite();
+                    this.updateHUD();
+                    SFX.playPickup();
+                }
+            });
+        };
+
+        GameScene.prototype.handleDebrisHit = function (player, debris) {
+            debris.destroy();
+            this.playerHealth = Math.max(0, this.playerHealth - 1);
+            this.cameras.main.shake(150, 0.015);
+            SFX.playHit();
+            this.updateHUD();
+
+            if (this.playerHealth <= 0) {
+                this.gameOver(false, '¡El rescatista sucumbió a las heridas!');
+            }
+        };
+
+        GameScene.prototype.handleSafeZoneReached = function () {
+            if (this.carrying > 0) {
+                this.deliveredSurvivors += this.carrying;
+                GameState.totalRescued += this.carrying;
+                this.carrying = 0;
+                this.updatePlayerSprite();
+                SFX.playDeliver();
+
+                if (this.deliveredSurvivors + this.lostSurvivors >= this.targetSurvivors) {
+                    this.completeLevel();
+                }
+            }
+        };
+
+        GameScene.prototype.updateHUD = function () {
+            this.uiText.setText(`MODO: ${GameState.catastrophe}  |  NIVEL: ${GameState.currentLevel}/${GameState.maxLevels}`);
+            if (this.clockText) this.clockText.setText(`⏱ ${String(Math.max(0, this.timeLeft)).padStart(2, '0')} s`);
+            if (this.healthText) this.healthText.setText(`${'❤️'.repeat(this.playerHealth)}${'🖤'.repeat(Math.max(0, 6 - this.playerHealth))}`);
+            if (this.rescueText) this.rescueText.setText(`RESCATADOS  ${this.deliveredSurvivors}/${this.targetSurvivors}`);
+        };
+
+        GameScene.prototype.createPauseOverlay = function () {
+            this.pauseContainer = this.add.container(0, 0).setDepth(100).setVisible(false);
+
+            const bg = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.88);
+            const title = this.add.text(400, 120, 'PAUSA Y CONFIGURACIÓN', { fontSize: '32px', color: '#f39c12', fontStyle: 'bold' }).setOrigin(0.5);
+
+            const btnResumeBg = this.add.rectangle(400, 210, 280, 45, 0x27ae60).setInteractive({ useHandCursor: true });
+            const btnResumeTxt = this.add.text(400, 210, 'Reanudar Nivel', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            btnResumeBg.on('pointerdown', () => this.togglePauseMenu());
+
+            const btnSoundBg = this.add.rectangle(400, 280, 280, 45, 0x2980b9).setInteractive({ useHandCursor: true });
+            this.soundBtnLabel = this.add.text(400, 280, SFX.audioEnabled ? 'Sonido: ACTIVADO 🔊' : 'Sonido: DESACTIVADO 🔇', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            btnSoundBg.on('pointerdown', () => {
+                SFX.audioEnabled = !SFX.audioEnabled;
+                if (!SFX.audioEnabled) SFX.stopBGM();
+                else SFX.startBGM();
+                this.soundBtnLabel.setText(SFX.audioEnabled ? 'Sonido: ACTIVADO 🔊' : 'Sonido: DESACTIVADO 🔇');
+            });
+
+            const btnRestartBg = this.add.rectangle(400, 350, 280, 45, 0xe67e22).setInteractive({ useHandCursor: true });
+            const btnRestartTxt = this.add.text(400, 350, 'Reiniciar Nivel', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            btnRestartBg.on('pointerdown', () => {
+                this.isPaused = false;
+                this.physics.resume();
+                this.scene.restart();
+            });
+
+            const btnMenuBg = this.add.rectangle(400, 420, 280, 45, 0xc0392b).setInteractive({ useHandCursor: true });
+            const btnMenuTxt = this.add.text(400, 420, 'Volver al Menú Principal', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+            btnMenuBg.on('pointerdown', () => {
+                this.isPaused = false;
+                SFX.stopBGM();
+                this.physics.resume();
+                this.scene.start('CatastropheSelectScene');
+            });
+
+            this.pauseContainer.add([
+                bg, title,
+                btnResumeBg, btnResumeTxt,
+                btnSoundBg, this.soundBtnLabel,
+                btnRestartBg, btnRestartTxt,
+                btnMenuBg, btnMenuTxt
+            ]);
+        };
+
+        GameScene.prototype.togglePauseMenu = function () {
+            this.isPaused = !this.isPaused;
+            if (this.isPaused) {
+                this.physics.pause();
+                this.pauseContainer.setVisible(true);
+            } else {
+                this.physics.resume();
+                this.pauseContainer.setVisible(false);
+            }
+        };
+
+        GameScene.prototype.calculateStars = function () {
+            let stars = 1;
+            if (this.timeLeft >= this.initialTime * 0.4) stars++;
+            if (this.playerHealth === this.initialHealth) stars++;
+            stars = Math.max(1, stars - this.lostSurvivors);
+            return stars;
+        };
+
+        GameScene.prototype.completeLevel = function () {
+            if (this.levelFinished) return;
+            this.levelFinished = true;
+            this.debrisTimer.remove();
+            this.levelTimer.remove();
+
+            const stars = this.calculateStars();
+            GameState.saveProgress(GameState.catastrophe, GameState.currentLevel, stars);
+
+            if (GameState.currentLevel < GameState.maxLevels) {
+                GameState.currentLevel++;
+                this.scene.restart();
+            } else {
+                this.gameOver(true, '¡Completaste los 8 niveles y llegaste a la Ciudad Segura!');
+            }
+        };
+
+        GameScene.prototype.gameOver = function (isWin, message) {
+            if (this.levelFinished && this.gameOverStarted) return;
+            this.gameOverStarted = true;
+            SFX.stopBGM();
+            let recordData = null;
+            if (isWin && GameState.currentLevel === GameState.maxLevels) {
+                recordData = saveAndCompareRecord();
+                saveHeroRecord(GameState.playerName, GameState.totalRunSeconds);
+            }
+            this.scene.start('GameOverScene', { win: isWin, msg: message, recordData });
+        };
+
+        function GameOverScene() { Phaser.Scene.call(this, { key: 'GameOverScene' }); }
+        GameOverScene.prototype = Object.create(Phaser.Scene.prototype);
+
+        GameOverScene.prototype.init = function (data) { this.win = data.win; this.msg = data.msg; this.recordData = data.recordData || null; };
+
+        GameOverScene.prototype.create = function () {
+            const titleColor = this.win ? '#2ecc71' : '#e74c3c';
+            const titleText = this.win ? '¡MISIÓN CUMPLIDA!' : 'FIN DEL JUEGO';
+            this.add.text(400, 82, titleText, { fontSize: '40px', color: titleColor, fontStyle: 'bold' }).setOrigin(0.5);
+            this.add.text(400, 145, this.msg, { fontSize: '18px', color: '#ffffff', align: 'center', wordWrap: { width: 650 } }).setOrigin(0.5);
+            this.add.text(400, 205, `${GameState.playerName}, salvaste a ${GameState.totalRescued} personas.`, { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold', align: 'center' }).setOrigin(0.5);
+            this.add.text(400, 250, `Tiempo total: ${formatTime(GameState.totalRunSeconds)}`, { fontSize: '19px', color: '#ffffff' }).setOrigin(0.5);
+
+            if (this.win) {
+                const encouragement = GameState.catastrophe === 'Erupcion'
+                    ? 'Eres un héroe, ve a descansar y mirá el despertar de un mundo agradecido.'
+                    : '¡Tu valentía hizo la diferencia! Cada persona rescatada cuenta.';
+                this.add.text(400, 300, encouragement, { fontSize: '17px', color: '#b9d7ff', align: 'center', wordWrap: { width: 680 } }).setOrigin(0.5);
+                if (this.recordData) {
+                    const old = this.recordData.previous;
+                    const record = this.recordData.current;
+                    const recordLine = old
+                        ? `Récord de ${record.name}: ${record.rescued} personas en ${formatTime(record.seconds)}${this.recordData.isBetter ? ' — ¡nuevo récord!' : ''}`
+                        : `Primer récord de ${record.name}: ${record.rescued} personas en ${formatTime(record.seconds)}`;
+                    this.add.text(400, 355, recordLine, { fontSize: '16px', color: '#f8d66d', align: 'center', wordWrap: { width: 700 } }).setOrigin(0.5);
+                }
+                const nextMode = GameState.catastrophe === 'Terremoto' ? 'Inundaciones' : (GameState.catastrophe === 'Inundacion' ? 'Erupciones' : '¡Completaste todos los modos!');
+                this.add.text(400, 400, GameState.catastrophe === 'Erupcion' ? nextMode : `¿Te animás al siguiente desafío: ${nextMode}?`, { fontSize: '17px', color: '#ffffff', align: 'center' }).setOrigin(0.5);
+            }
+
+            const btnRestart = this.add.rectangle(400, 505, 260, 48, 0x34495e).setInteractive({ useHandCursor: true });
+            this.add.text(400, 505, 'Menú de Modos', { fontSize: '19px', color: '#ffffff' }).setOrigin(0.5);
+            btnRestart.on('pointerdown', () => {
+                GameState.totalRescued = 0;
+                GameState.totalRunSeconds = 0;
+                this.scene.start('CatastropheSelectScene');
+            });
+        };
+    </script>
+</body>
+</html>
